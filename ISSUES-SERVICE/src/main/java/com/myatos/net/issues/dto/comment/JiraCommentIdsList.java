@@ -1,0 +1,15 @@
+package com.myatos.net.issues.dto.comment;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class JiraCommentIdsList {
+    @JsonProperty("ids")
+    private List<String> ids;
+}
