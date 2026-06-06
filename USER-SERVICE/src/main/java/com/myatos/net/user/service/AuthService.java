@@ -29,9 +29,9 @@ public class AuthService {
         String password = decoded.substring(idx + 1);
 
         var user = userRepo.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password"));
         if (!encryptionService.matches(password, user.getPassword()))
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
 
         String accountId = user.getAccountId();
         String baseUrl   = null;
@@ -42,4 +42,3 @@ public class AuthService {
         return new VerifyResponse(user.getId(), user.getUsername(), roles, accountId, baseUrl);
     }
 }
-
