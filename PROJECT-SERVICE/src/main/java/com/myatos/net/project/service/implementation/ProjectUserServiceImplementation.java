@@ -3,7 +3,6 @@ package com.myatos.net.project.service.implementation;
 
 import com.myatos.net.project.client.CredentialClient;
 import com.myatos.net.project.dto.credentials.UserCredentialResponse;
-import com.myatos.net.project.dto.helper.JiraUrlBuilder;
 import com.myatos.net.project.model.Project;
 import com.myatos.net.project.model.ProjectUser;
 import com.myatos.net.project.repository.ProjectRepository;
@@ -24,7 +23,6 @@ public class ProjectUserServiceImplementation implements ProjectUserService {
     private final ProjectUserRepository projectUserRepository;
     private final ProjectRepository projectRepository;
     private final CredentialClient credentialClient;
-    private final JiraUrlBuilder jiraUrlBuilder;
 
     // ─────────────────────────────────────────────
     // Public API
@@ -108,11 +106,22 @@ public class ProjectUserServiceImplementation implements ProjectUserService {
         if (cred == null || isBlank(cred.getBaseUrl())) {
             throw new IllegalStateException("Missing Jira baseUrl for current user");
         }
-        cred.setBaseUrl(jiraUrlBuilder.normalizeJiraBaseUrl(cred.getBaseUrl()));
+        cred.setBaseUrl(normalizeBaseUrl(cred.getBaseUrl()));
         if (isBlank(cred.getUsername())) {
             throw new IllegalStateException("Missing Jira username for current user");
         }
         return cred;
+    }
+
+    private String normalizeBaseUrl(String value) {
+        String normalized = requireNotBlank(value, "baseUrl is required").trim();
+        if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+            normalized = "https://" + normalized;
+        }
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private static String requireNotBlank(String s, String msg) {

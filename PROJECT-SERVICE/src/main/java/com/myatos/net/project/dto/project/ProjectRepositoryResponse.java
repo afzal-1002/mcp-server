@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 @Builder
 public class ProjectRepositoryResponse {
     private Long id;
+    private String baseUrl;
     private String projectKey;
     private String repoName;
     private String repoUrl;

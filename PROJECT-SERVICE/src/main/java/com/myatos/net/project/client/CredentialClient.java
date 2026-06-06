@@ -33,6 +33,10 @@ public interface CredentialClient {
     @GetMapping("/me")
     UserCredentialResponse getMine();
 
+    @GetMapping("/me/resolved")
+    UserCredentialResponse getResolvedCredentialForCurrentUser(@RequestParam(name = "siteId", required = false) Long siteId,
+                                                               @RequestParam(name = "baseUrl", required = false) String baseUrl);
+
     // READ (utility)
     @GetMapping("/by-username")
     UserCredentialResponse getByUsername(@RequestParam("username") String username);

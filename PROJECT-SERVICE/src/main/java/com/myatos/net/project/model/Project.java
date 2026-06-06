@@ -61,11 +61,6 @@ public class Project {
     @Builder.Default
     private Set<ProjectIssue> projectIssues = new HashSet<>();
 
-    @OneToMany(mappedBy = "project", fetch = FetchType.LAZY,
-            cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private Set<ProjectRepositoryConfig> repositoryConfigs = new HashSet<>();
-
     /* --------- Optional tiny helpers (safe to keep) --------- */
 
     public void addProjectUser(ProjectUser link) {
@@ -90,18 +85,6 @@ public class Project {
         if (link == null) return;
         projectIssues.remove(link);
         link.setProject(null);
-    }
-
-    public void addRepositoryConfig(ProjectRepositoryConfig config) {
-        if (config == null) return;
-        config.setProject(this);
-        repositoryConfigs.add(config);
-    }
-
-    public void removeRepositoryConfig(ProjectRepositoryConfig config) {
-        if (config == null) return;
-        repositoryConfigs.remove(config);
-        config.setProject(null);
     }
 
 }

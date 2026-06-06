@@ -14,5 +14,7 @@ public interface ProjectRepositoryConfigService {
     ProjectRepositoryResponse getDefaultRepository(String projectKey, String baseUrl);
     ProjectRepositoryResponse getRepository(String projectKey, Long repositoryId, String baseUrl);
     ProjectRepositoryResponse update(String projectKey, Long repositoryId, UpdateProjectRepositoryRequest request);
+    ProjectRepositoryResponse update(String projectKey, Long repositoryId, String baseUrl, UpdateProjectRepositoryRequest request);
     void delete(String projectKey, Long repositoryId);
+    void delete(String projectKey, Long repositoryId, String baseUrl);
 }

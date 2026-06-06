@@ -9,8 +9,8 @@ import java.time.OffsetDateTime;
 @Table(
         name = "project_repository_configs",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_project_repo_url", columnNames = {"project_id", "repo_url"}),
-                @UniqueConstraint(name = "uk_project_repo_name", columnNames = {"project_id", "repo_name"})
+                @UniqueConstraint(name = "uk_project_repo_url", columnNames = {"jira_base_url", "project_key", "repo_url"}),
+                @UniqueConstraint(name = "uk_project_repo_name", columnNames = {"jira_base_url", "project_key", "repo_name"})
         }
 )
 @Getter
@@ -25,9 +25,11 @@ public class ProjectRepositoryConfig {
     @Column(name = "project_repository_config_id")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "project_id", nullable = false)
-    private Project project;
+    @Column(name = "jira_base_url", nullable = false, length = 512)
+    private String baseUrl;
+
+    @Column(name = "project_key", nullable = false, length = 32)
+    private String projectKey;
 
     @Column(name = "repo_name", nullable = false, length = 255)
     private String repoName;

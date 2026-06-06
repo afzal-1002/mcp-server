@@ -7,12 +7,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProjectRepositoryConfigRepository extends JpaRepository<ProjectRepositoryConfig, Long> {
-    List<ProjectRepositoryConfig> findAllByProject_IdOrderByPrimaryRepositoryDescRepoNameAsc(Long projectId);
-    Optional<ProjectRepositoryConfig> findByIdAndProject_Id(Long repositoryId, Long projectId);
-    Optional<ProjectRepositoryConfig> findFirstByProject_KeyIgnoreCaseAndActiveTrueOrderByPrimaryRepositoryDescRepoNameAsc(String projectKey);
-    Optional<ProjectRepositoryConfig> findFirstByProject_KeyIgnoreCaseAndProject_BaseUrlIgnoreCaseAndActiveTrueOrderByPrimaryRepositoryDescRepoNameAsc(String projectKey, String baseUrl);
-    boolean existsByProject_IdAndRepoUrlIgnoreCase(Long projectId, String repoUrl);
-    boolean existsByProject_IdAndRepoUrlIgnoreCaseAndIdNot(Long projectId, String repoUrl, Long repositoryId);
-    boolean existsByProject_IdAndRepoNameIgnoreCase(Long projectId, String repoName);
-    boolean existsByProject_IdAndRepoNameIgnoreCaseAndIdNot(Long projectId, String repoName, Long repositoryId);
+    List<ProjectRepositoryConfig> findAllByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseOrderByPrimaryRepositoryDescRepoNameAsc(String projectKey, String baseUrl);
+    Optional<ProjectRepositoryConfig> findByIdAndProjectKeyIgnoreCaseAndBaseUrlIgnoreCase(Long repositoryId, String projectKey, String baseUrl);
+    Optional<ProjectRepositoryConfig> findFirstByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndActiveTrueOrderByPrimaryRepositoryDescRepoNameAsc(String projectKey, String baseUrl);
+    boolean existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoUrlIgnoreCase(String projectKey, String baseUrl, String repoUrl);
+    boolean existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoUrlIgnoreCaseAndIdNot(String projectKey, String baseUrl, String repoUrl, Long repositoryId);
+    boolean existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoNameIgnoreCase(String projectKey, String baseUrl, String repoName);
+    boolean existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoNameIgnoreCaseAndIdNot(String projectKey, String baseUrl, String repoName, Long repositoryId);
 }

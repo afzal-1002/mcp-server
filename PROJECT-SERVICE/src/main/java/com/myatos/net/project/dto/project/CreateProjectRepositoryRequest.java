@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class CreateProjectRepositoryRequest {
+    private String baseUrl;
     private String repoName;
     private String repoUrl;
     private String defaultBranch;

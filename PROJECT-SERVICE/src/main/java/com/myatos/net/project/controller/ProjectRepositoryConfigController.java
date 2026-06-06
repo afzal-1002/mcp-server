@@ -56,14 +56,19 @@ public class ProjectRepositoryConfigController {
     public ResponseEntity<ProjectRepositoryResponse> update(
             @PathVariable String projectKey,
             @PathVariable Long repositoryId,
+            @RequestParam(name = "baseUrl", required = false) String baseUrl,
             @RequestBody UpdateProjectRepositoryRequest request
     ) {
-        return ResponseEntity.ok(projectRepositoryConfigService.update(projectKey, repositoryId, request));
+        return ResponseEntity.ok(projectRepositoryConfigService.update(projectKey, repositoryId, baseUrl, request));
     }
 
     @DeleteMapping("/{repositoryId}")
-    public ResponseEntity<Void> delete(@PathVariable String projectKey, @PathVariable Long repositoryId) {
-        projectRepositoryConfigService.delete(projectKey, repositoryId);
+    public ResponseEntity<Void> delete(
+            @PathVariable String projectKey,
+            @PathVariable Long repositoryId,
+            @RequestParam(name = "baseUrl", required = false) String baseUrl
+    ) {
+        projectRepositoryConfigService.delete(projectKey, repositoryId, baseUrl);
         return ResponseEntity.noContent().build();
     }
 }

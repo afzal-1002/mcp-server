@@ -33,6 +33,7 @@ class DynamicCopilotContextServiceTest {
         when(projectServiceClient.getDefaultRepository("ABC", "https://jira.example.com"))
                 .thenReturn(new ProjectRepositoryResponse(
                         10L,
+                        "https://jira.example.com",
                         "ABC",
                         "Backend",
                         "https://github.gsissc.myatos.net/my-org/my-repo.git",

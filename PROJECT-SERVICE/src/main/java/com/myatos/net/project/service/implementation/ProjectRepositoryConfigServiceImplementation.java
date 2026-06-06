@@ -1,14 +1,14 @@
 package com.myatos.net.project.service.implementation;
 
+import com.myatos.net.project.client.CredentialClient;
 import com.myatos.net.project.client.IntegrationCredentialClient;
 import com.myatos.net.project.dto.credentials.IntegrationCredentialResponse;
+import com.myatos.net.project.dto.credentials.UserCredentialResponse;
 import com.myatos.net.project.dto.project.CreateProjectRepositoryRequest;
 import com.myatos.net.project.dto.project.ProjectRepositoryResponse;
 import com.myatos.net.project.dto.project.UpdateProjectRepositoryRequest;
 import com.myatos.net.project.exceptions.ResourceNotFoundException;
-import com.myatos.net.project.model.Project;
 import com.myatos.net.project.model.ProjectRepositoryConfig;
-import com.myatos.net.project.repository.ProjectRepository;
 import com.myatos.net.project.repository.ProjectRepositoryConfigRepository;
 import com.myatos.net.project.service.ProjectRepositoryConfigService;
 import lombok.RequiredArgsConstructor;
@@ -22,20 +22,22 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class ProjectRepositoryConfigServiceImplementation implements ProjectRepositoryConfigService {
 
-    private final ProjectRepository projectRepository;
     private final ProjectRepositoryConfigRepository projectRepositoryConfigRepository;
     private final IntegrationCredentialClient integrationCredentialClient;
+    private final CredentialClient credentialClient;
 
     @Override
     @Transactional
     public ProjectRepositoryResponse create(String projectKey, CreateProjectRepositoryRequest request) {
         validateCreate(request);
-        Project project = getProject(projectKey);
+        String key = normalizeProjectKey(projectKey);
+        String baseUrl = resolveSelectedJiraBaseUrl(request.getBaseUrl());
         validateCredential(request.getCredentialId());
-        ensureUnique(project.getId(), request.getRepoName(), request.getRepoUrl(), null);
+        ensureUnique(key, baseUrl, request.getRepoName(), request.getRepoUrl(), null);
 
         ProjectRepositoryConfig config = ProjectRepositoryConfig.builder()
-                .project(project)
+                .projectKey(key)
+                .baseUrl(baseUrl)
                 .repoName(normalizeRepoName(request.getRepoName()))
                 .repoUrl(normalizeRepoUrl(request.getRepoUrl()))
                 .defaultBranch(defaultBranch(request.getDefaultBranch()))
@@ -45,7 +47,7 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
                 .build();
 
         if (config.isPrimaryRepository()) {
-            clearPrimary(project.getId());
+            clearPrimary(key, baseUrl);
         }
 
         return toResponse(projectRepositoryConfigRepository.save(config));
@@ -54,14 +56,16 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
     @Override
     @Transactional(readOnly = true)
     public List<ProjectRepositoryResponse> listByProject(String projectKey) {
-        return listByProject(projectKey, null);
+        throw new IllegalArgumentException("baseUrl is required because Jira project keys can exist in multiple domains.");
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProjectRepositoryResponse> listByProject(String projectKey, String baseUrl) {
-        Project project = getProject(projectKey, baseUrl);
-        return projectRepositoryConfigRepository.findAllByProject_IdOrderByPrimaryRepositoryDescRepoNameAsc(project.getId())
+        String key = normalizeProjectKey(projectKey);
+        String selectedBaseUrl = requireBaseUrl(baseUrl);
+        return projectRepositoryConfigRepository
+                .findAllByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseOrderByPrimaryRepositoryDescRepoNameAsc(key, selectedBaseUrl)
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -70,22 +74,17 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
     @Override
     @Transactional(readOnly = true)
     public ProjectRepositoryResponse getDefaultRepository(String projectKey) {
-        return getDefaultRepository(projectKey, null);
+        throw new IllegalArgumentException("baseUrl is required because Jira project keys can exist in multiple domains.");
     }
 
     @Override
     @Transactional(readOnly = true)
     public ProjectRepositoryResponse getDefaultRepository(String projectKey, String baseUrl) {
-        String normalizedBaseUrl = trimToNull(baseUrl) == null ? null : normalizeBaseUrl(baseUrl);
-        if (normalizedBaseUrl != null) {
-            ProjectRepositoryConfig config = projectRepositoryConfigRepository
-                    .findFirstByProject_KeyIgnoreCaseAndProject_BaseUrlIgnoreCaseAndActiveTrueOrderByPrimaryRepositoryDescRepoNameAsc(projectKey, normalizedBaseUrl)
-                    .orElseThrow(() -> new ResourceNotFoundException("No active repository configured for project: " + projectKey + " at baseUrl: " + normalizedBaseUrl));
-            return toResponse(config);
-        }
+        String key = normalizeProjectKey(projectKey);
+        String selectedBaseUrl = requireBaseUrl(baseUrl);
         ProjectRepositoryConfig config = projectRepositoryConfigRepository
-                .findFirstByProject_KeyIgnoreCaseAndActiveTrueOrderByPrimaryRepositoryDescRepoNameAsc(projectKey)
-                .orElseThrow(() -> new ResourceNotFoundException("No active repository configured for project: " + projectKey));
+                .findFirstByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndActiveTrueOrderByPrimaryRepositoryDescRepoNameAsc(key, selectedBaseUrl)
+                .orElseThrow(() -> new ResourceNotFoundException("No active repository configured for project: " + key + " at baseUrl: " + selectedBaseUrl));
         return toResponse(config);
     }
 
@@ -95,8 +94,10 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
         if (repositoryId == null) {
             throw new IllegalArgumentException("repositoryId is required");
         }
-        Project project = getProject(projectKey, baseUrl);
-        ProjectRepositoryConfig config = projectRepositoryConfigRepository.findByIdAndProject_Id(repositoryId, project.getId())
+        String key = normalizeProjectKey(projectKey);
+        String selectedBaseUrl = requireBaseUrl(baseUrl);
+        ProjectRepositoryConfig config = projectRepositoryConfigRepository
+                .findByIdAndProjectKeyIgnoreCaseAndBaseUrlIgnoreCase(repositoryId, key, selectedBaseUrl)
                 .orElseThrow(() -> new ResourceNotFoundException("Repository config not found: " + repositoryId));
         return toResponse(config);
     }
@@ -104,17 +105,25 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
     @Override
     @Transactional
     public ProjectRepositoryResponse update(String projectKey, Long repositoryId, UpdateProjectRepositoryRequest request) {
+        throw new IllegalArgumentException("baseUrl is required because Jira project keys can exist in multiple domains.");
+    }
+
+    @Override
+    @Transactional
+    public ProjectRepositoryResponse update(String projectKey, Long repositoryId, String baseUrl, UpdateProjectRepositoryRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request is required");
         }
 
-        Project project = getProject(projectKey);
-        ProjectRepositoryConfig config = projectRepositoryConfigRepository.findByIdAndProject_Id(repositoryId, project.getId())
+        String key = normalizeProjectKey(projectKey);
+        String selectedBaseUrl = requireBaseUrl(baseUrl);
+        ProjectRepositoryConfig config = projectRepositoryConfigRepository
+                .findByIdAndProjectKeyIgnoreCaseAndBaseUrlIgnoreCase(repositoryId, key, selectedBaseUrl)
                 .orElseThrow(() -> new ResourceNotFoundException("Repository config not found: " + repositoryId));
 
         String repoName = request.getRepoName() == null ? config.getRepoName() : normalizeRepoName(request.getRepoName());
         String repoUrl = request.getRepoUrl() == null ? config.getRepoUrl() : normalizeRepoUrl(request.getRepoUrl());
-        ensureUnique(project.getId(), repoName, repoUrl, repositoryId);
+        ensureUnique(key, selectedBaseUrl, repoName, repoUrl, repositoryId);
 
         config.setRepoName(repoName);
         config.setRepoUrl(repoUrl);
@@ -127,7 +136,7 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
         }
         if (request.getPrimaryRepository() != null) {
             if (request.getPrimaryRepository()) {
-                clearPrimary(project.getId());
+                clearPrimary(key, selectedBaseUrl);
             }
             config.setPrimaryRepository(request.getPrimaryRepository());
         }
@@ -141,8 +150,16 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
     @Override
     @Transactional
     public void delete(String projectKey, Long repositoryId) {
-        Project project = getProject(projectKey);
-        ProjectRepositoryConfig config = projectRepositoryConfigRepository.findByIdAndProject_Id(repositoryId, project.getId())
+        throw new IllegalArgumentException("baseUrl is required because Jira project keys can exist in multiple domains.");
+    }
+
+    @Override
+    @Transactional
+    public void delete(String projectKey, Long repositoryId, String baseUrl) {
+        String key = normalizeProjectKey(projectKey);
+        String selectedBaseUrl = requireBaseUrl(baseUrl);
+        ProjectRepositoryConfig config = projectRepositoryConfigRepository
+                .findByIdAndProjectKeyIgnoreCaseAndBaseUrlIgnoreCase(repositoryId, key, selectedBaseUrl)
                 .orElseThrow(() -> new ResourceNotFoundException("Repository config not found: " + repositoryId));
         projectRepositoryConfigRepository.delete(config);
     }
@@ -150,6 +167,9 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
     private void validateCreate(CreateProjectRepositoryRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request is required");
+        }
+        if (trimToNull(request.getBaseUrl()) == null) {
+            throw new IllegalArgumentException("baseUrl is required");
         }
         if (trimToNull(request.getRepoName()) == null) {
             throw new IllegalArgumentException("repoName is required");
@@ -162,17 +182,17 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
         }
     }
 
-    private void ensureUnique(Long projectId, String repoName, String repoUrl, Long repositoryId) {
+    private void ensureUnique(String projectKey, String baseUrl, String repoName, String repoUrl, Long repositoryId) {
         boolean repoNameExists = repositoryId == null
-                ? projectRepositoryConfigRepository.existsByProject_IdAndRepoNameIgnoreCase(projectId, repoName)
-                : projectRepositoryConfigRepository.existsByProject_IdAndRepoNameIgnoreCaseAndIdNot(projectId, repoName, repositoryId);
+                ? projectRepositoryConfigRepository.existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoNameIgnoreCase(projectKey, baseUrl, repoName)
+                : projectRepositoryConfigRepository.existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoNameIgnoreCaseAndIdNot(projectKey, baseUrl, repoName, repositoryId);
         if (repoNameExists) {
             throw new IllegalArgumentException("Repository name already linked to project: " + repoName);
         }
 
         boolean repoUrlExists = repositoryId == null
-                ? projectRepositoryConfigRepository.existsByProject_IdAndRepoUrlIgnoreCase(projectId, repoUrl)
-                : projectRepositoryConfigRepository.existsByProject_IdAndRepoUrlIgnoreCaseAndIdNot(projectId, repoUrl, repositoryId);
+                ? projectRepositoryConfigRepository.existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoUrlIgnoreCase(projectKey, baseUrl, repoUrl)
+                : projectRepositoryConfigRepository.existsByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseAndRepoUrlIgnoreCaseAndIdNot(projectKey, baseUrl, repoUrl, repositoryId);
         if (repoUrlExists) {
             throw new IllegalArgumentException("Repository URL already linked to project: " + repoUrl);
         }
@@ -185,9 +205,18 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
         }
     }
 
-    private void clearPrimary(Long projectId) {
-        List<ProjectRepositoryConfig> configs =
-                projectRepositoryConfigRepository.findAllByProject_IdOrderByPrimaryRepositoryDescRepoNameAsc(projectId);
+    private String resolveSelectedJiraBaseUrl(String baseUrl) {
+        String selectedBaseUrl = requireBaseUrl(baseUrl);
+        UserCredentialResponse credential = credentialClient.getResolvedCredentialForCurrentUser(null, selectedBaseUrl);
+        if (credential == null || trimToNull(credential.getBaseUrl()) == null) {
+            throw new IllegalStateException("No Jira domain credential found for selected baseUrl: " + selectedBaseUrl);
+        }
+        return normalizeBaseUrl(credential.getBaseUrl());
+    }
+
+    private void clearPrimary(String projectKey, String baseUrl) {
+        List<ProjectRepositoryConfig> configs = projectRepositoryConfigRepository
+                .findAllByProjectKeyIgnoreCaseAndBaseUrlIgnoreCaseOrderByPrimaryRepositoryDescRepoNameAsc(projectKey, baseUrl);
         for (ProjectRepositoryConfig config : configs) {
             if (config.isPrimaryRepository()) {
                 config.setPrimaryRepository(false);
@@ -195,24 +224,11 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
         }
     }
 
-    private Project getProject(String projectKey) {
-        return getProject(projectKey, null);
-    }
-
-    private Project getProject(String projectKey, String baseUrl) {
-        String normalizedBaseUrl = trimToNull(baseUrl) == null ? null : normalizeBaseUrl(baseUrl);
-        if (normalizedBaseUrl != null) {
-            return projectRepository.findByKeyAndBaseUrl(projectKey.toUpperCase(Locale.ROOT), normalizedBaseUrl)
-                    .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectKey + " at baseUrl: " + normalizedBaseUrl));
-        }
-        return projectRepository.findByKey(projectKey.toUpperCase(Locale.ROOT))
-                .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectKey));
-    }
-
     private ProjectRepositoryResponse toResponse(ProjectRepositoryConfig config) {
         return ProjectRepositoryResponse.builder()
                 .id(config.getId())
-                .projectKey(config.getProject().getKey())
+                .baseUrl(config.getBaseUrl())
+                .projectKey(config.getProjectKey())
                 .repoName(config.getRepoName())
                 .repoUrl(config.getRepoUrl())
                 .defaultBranch(config.getDefaultBranch())
@@ -222,6 +238,18 @@ public class ProjectRepositoryConfigServiceImplementation implements ProjectRepo
                 .createdAt(config.getCreatedAt())
                 .updatedAt(config.getUpdatedAt())
                 .build();
+    }
+
+    private String normalizeProjectKey(String projectKey) {
+        String key = trimToNull(projectKey);
+        if (key == null) {
+            throw new IllegalArgumentException("projectKey is required");
+        }
+        return key.toUpperCase(Locale.ROOT);
+    }
+
+    private String requireBaseUrl(String baseUrl) {
+        return normalizeBaseUrl(baseUrl);
     }
 
     private String normalizeRepoName(String repoName) {
